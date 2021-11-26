@@ -1,18 +1,23 @@
 package main
 
 import (
-	"errors"
+	"fmt"
 
 	sdk "gitee.com/openeuler/go-gitee/gitee"
 	libconfig "github.com/opensourceways/community-robot-lib/config"
+	"github.com/opensourceways/community-robot-lib/giteeclient"
 	libplugin "github.com/opensourceways/community-robot-lib/giteeplugin"
 	"github.com/sirupsen/logrus"
 )
 
-// TODO: set botName
-const botName = ""
+const botName = "associate"
 
 type iClient interface {
+	AddPRLabel(org, repo string, number int32, label string) error
+	RemovePRLabel(org, repo string, number int32, label string) error
+	CreatePRComment(org, repo string, number int32, comment string) error
+	IsCollaborator(owner, repo, login string) (bool, error)
+	ListPrIssues(org, repo string, number int32) ([]sdk.Issue, error)
 }
 
 func newRobot(cli iClient) *robot {
@@ -27,36 +32,56 @@ func (bot *robot) NewPluginConfig() libconfig.PluginConfig {
 	return &configuration{}
 }
 
-func (bot *robot) getConfig(cfg libconfig.PluginConfig) (*configuration, error) {
-	if c, ok := cfg.(*configuration); ok {
-		return c, nil
+func (bot *robot) getConfig(cfg libconfig.PluginConfig, org, repo string) (*botConfig, error) {
+	c, ok := cfg.(*configuration)
+	if !ok {
+		return nil, fmt.Errorf("can't convert to configuration")
 	}
-	return nil, errors.New("can't convert to configuration")
+
+	if bc := c.configFor(org, repo); bc != nil {
+		return bc, nil
+	}
+
+	return nil, fmt.Errorf("no config for this repo:%s/%s", org, repo)
 }
 
 func (bot *robot) RegisterEventHandler(p libplugin.HandlerRegitster) {
-	p.RegisterIssueHandler(bot.handleIssueEvent)
 	p.RegisterPullRequestHandler(bot.handlePREvent)
 	p.RegisterNoteEventHandler(bot.handleNoteEvent)
-	p.RegisterPushEventHandler(bot.handlePushEvent)
 }
 
-func (bot *robot) handlePREvent(e *sdk.PullRequestEvent, cfg libconfig.PluginConfig, log *logrus.Entry) error {
-	// TODO: if it doesn't needd to hand PR event, delete this function.
-	return nil
+func (bot *robot) handlePREvent(e *sdk.PullRequestEvent, pc libconfig.PluginConfig, log *logrus.Entry) error {
+	action := giteeclient.GetPullRequestAction(e)
+	if action != giteeclient.PRActionOpened {
+		return nil
+	}
+
+	org, repo := giteeclient.GetOwnerAndRepoByPREvent(e)
+
+	if _, err := bot.getConfig(pc, org, repo); err != nil {
+		return err
+	}
+
+	return bot.handlePRCreate(e, log)
 }
 
-func (bot *robot) handleIssueEvent(e *sdk.IssueEvent, cfg libconfig.PluginConfig, log *logrus.Entry) error {
-	// TODO: if it doesn't needd to hand Issue event, delete this function.
-	return nil
-}
+func (bot *robot) handleNoteEvent(e *sdk.NoteEvent, pc libconfig.PluginConfig, log *logrus.Entry) error {
+	ne := giteeclient.NewPRNoteEvent(e)
+	pr := ne.GetPRInfo()
 
-func (bot *robot) handlePushEvent(e *sdk.PushEvent, cfg libconfig.PluginConfig, log *logrus.Entry) error {
-	// TODO: if it doesn't needd to hand Push event, delete this function.
-	return nil
-}
+	if !ne.IsCreatingCommentEvent() {
+		log.Info("Event is not a creation of a comment, skipping.")
 
-func (bot *robot) handleNoteEvent(e *sdk.NoteEvent, cfg libconfig.PluginConfig, log *logrus.Entry) error {
-	// TODO: if it doesn't needd to hand Note event, delete this function.
+		return nil
+	}
+
+	if _, err := bot.getConfig(pc, pr.Org, pr.Repo); err != nil {
+		return err
+	}
+
+	if ne.IsPullRequest() {
+		return bot.handlePRComment(e)
+	}
+
 	return nil
 }

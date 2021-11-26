@@ -1,6 +1,8 @@
 package main
 
-import libconfig "github.com/opensourceways/community-robot-lib/config"
+import (
+	libconfig "github.com/opensourceways/community-robot-lib/config"
+)
 
 type configuration struct {
 	ConfigItems []botConfig `json:"config_items,omitempty"`
@@ -13,6 +15,7 @@ func (c *configuration) configFor(org, repo string) *botConfig {
 
 	items := c.ConfigItems
 	v := make([]libconfig.IPluginForRepo, len(items))
+
 	for i := range items {
 		v[i] = &items[i]
 	}
@@ -20,6 +23,7 @@ func (c *configuration) configFor(org, repo string) *botConfig {
 	if i := libconfig.FindConfig(org, repo, v); i >= 0 {
 		return &items[i]
 	}
+
 	return nil
 }
 
@@ -34,6 +38,7 @@ func (c *configuration) Validate() error {
 			return err
 		}
 	}
+
 	return nil
 }
 
