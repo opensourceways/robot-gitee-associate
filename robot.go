@@ -18,6 +18,9 @@ type iClient interface {
 	CreatePRComment(org, repo string, number int32, comment string) error
 	IsCollaborator(owner, repo, login string) (bool, error)
 	ListPrIssues(org, repo string, number int32) ([]sdk.Issue, error)
+	CreateIssueComment(org, repo string, number string, comment string) error
+	RemoveIssueLabel(org, repo, number, label string) error
+	AddIssueLabel(org, repo, number, label string) error
 }
 
 func newRobot(cli iClient) *robot {
@@ -48,6 +51,7 @@ func (bot *robot) getConfig(cfg libconfig.PluginConfig, org, repo string) (*botC
 func (bot *robot) RegisterEventHandler(p libplugin.HandlerRegitster) {
 	p.RegisterPullRequestHandler(bot.handlePREvent)
 	p.RegisterNoteEventHandler(bot.handleNoteEvent)
+	p.RegisterIssueHandler(bot.handleIssueEvent)
 }
 
 func (bot *robot) handlePREvent(e *sdk.PullRequestEvent, pc libconfig.PluginConfig, log *logrus.Entry) error {
@@ -66,22 +70,51 @@ func (bot *robot) handlePREvent(e *sdk.PullRequestEvent, pc libconfig.PluginConf
 }
 
 func (bot *robot) handleNoteEvent(e *sdk.NoteEvent, pc libconfig.PluginConfig, log *logrus.Entry) error {
-	ne := giteeclient.NewPRNoteEvent(e)
-	pr := ne.GetPRInfo()
+	switch e.GetNoteableType() {
+	case "PullRequest":
+		ne := giteeclient.NewPRNoteEvent(e)
 
-	if !ne.IsCreatingCommentEvent() {
-		log.Info("Event is not a creation of a comment, skipping.")
+		if !ne.IsCreatingCommentEvent() {
+			log.Info("Event is not a creation of a comment, skipping.")
 
-		return nil
-	}
+			return nil
+		}
 
-	if _, err := bot.getConfig(pc, pr.Org, pr.Repo); err != nil {
-		return err
-	}
-
-	if ne.IsPullRequest() {
 		return bot.handlePRComment(e)
+	case "Issue":
+		ne := giteeclient.NewIssueNoteEvent(e)
+		if !ne.IsCreatingCommentEvent() {
+			log.Info("Event is not a creation of a comment, skipping.")
+
+			return nil
+		}
+
+		cfg, err := bot.getConfig(pc, ne.GetRepository().GetNameSpace(), ne.GetRepository().GetPath())
+		if err != nil {
+			return err
+		}
+
+		if cfg.SwitchOfMilestone != "on" {
+			return nil
+		}
+
+		return bot.handleIssueComment(e)
 	}
 
 	return nil
+}
+
+func (bot *robot) handleIssueEvent(e *sdk.IssueEvent, pc libconfig.PluginConfig, log *logrus.Entry) error {
+	org, repo := giteeclient.GetOwnerAndRepoByIssueEvent(e)
+
+	cfg, err := bot.getConfig(pc, org, repo)
+	if err != nil {
+		return err
+	}
+
+	if e.GetAction() == "open" && cfg.SwitchOfMilestone != "on" {
+		return nil
+	}
+
+	return bot.handleIssueCreate(e, log)
 }

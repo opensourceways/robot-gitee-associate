@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	libconfig "github.com/opensourceways/community-robot-lib/config"
 )
 
@@ -55,11 +57,20 @@ func (c *configuration) SetDefault() {
 
 type botConfig struct {
 	libconfig.PluginForRepo
+	SwitchOfMilestone string `json:"switch_of_milestone" required:"true"`
 }
 
 func (c *botConfig) setDefault() {
 }
 
 func (c *botConfig) validate() error {
-	return c.PluginForRepo.Validate()
+	if err := c.PluginForRepo.Validate(); err != nil {
+		return err
+	}
+
+	if c.SwitchOfMilestone == "" {
+		return fmt.Errorf("missing SwitchOfMilestone")
+	}
+
+	return nil
 }
