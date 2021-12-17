@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"regexp"
 
-	sdk "gitee.com/openeuler/go-gitee/gitee"
+	sdk "github.com/opensourceways/go-gitee/gitee"
 	"github.com/sirupsen/logrus"
 )
 
@@ -19,18 +19,14 @@ const (
 var checkMilestoneRe = regexp.MustCompile(`(?mi)^/check-milestone\s*$`)
 
 func (bot *robot) handleIssueCreate(e *sdk.IssueEvent, log *logrus.Entry) error {
-	if e.GetIssue().Milestone != nil && e.GetIssue().Milestone.Id != 0 {
+	if e.GetIssue().GetMilestone().GetID() != 0 {
 		log.Debug(fmt.Sprintf(milestoneHasSetMessage, e.GetIssue().GetNumber()))
-
 		return nil
 	}
 
-	owner := e.GetRepository().GetNameSpace()
-	repo := e.GetRepository().GetPath()
-	number := e.GetIssue().GetNumber()
-	author := e.GetIssue().GetUser().GetLogin()
+	org, repo := e.GetOrgRepo()
 
-	return bot.handleAddIssueLabelAndComment(owner, repo, number, author)
+	return bot.handleAddIssueLabelAndComment(org, repo, e.GetIssueNumber(), e.GetIssueAuthor())
 }
 
 func (bot *robot) handleIssueComment(e *sdk.NoteEvent) error {
@@ -38,27 +34,17 @@ func (bot *robot) handleIssueComment(e *sdk.NoteEvent) error {
 		return nil
 	}
 
-	org, repo := e.GetRepository().GetOwnerAndRepo()
-	number := e.GetIssue().GetNumber()
-	author := e.GetIssue().GetUser().GetLogin()
-
-	issueHasLabels := e.GetIssue().Labels
-	hasMilestone := e.GetIssue().Milestone != nil && e.GetIssue().Milestone.Id != 0
-
-	hasLabel := false
-
-	for _, v := range issueHasLabels {
-		if v.Name == unsetMilestoneLabel {
-			hasLabel = true
-		}
-	}
+	org, repo := e.GetOrgRepo()
+	number := e.GetIssueNumber()
+	hasMilestone := e.GetIssue().GetMilestone().GetID() != 0
+	hasLabel := e.GetIssueLabelSet().Has(unsetMilestoneLabel)
 
 	if hasLabel && hasMilestone {
 		return bot.cli.RemoveIssueLabel(org, repo, number, unsetMilestoneLabel)
 	}
 
 	if !hasMilestone && !hasLabel {
-		return bot.handleAddIssueLabelAndComment(org, repo, number, author)
+		return bot.handleAddIssueLabelAndComment(org, repo, number, e.GetIssueAuthor())
 	}
 
 	return nil
