@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/opensourceways/community-robot-lib/config"
-	"github.com/opensourceways/community-robot-lib/giteeclient"
 	"github.com/opensourceways/community-robot-lib/robot-gitee-framework"
 	sdk "github.com/opensourceways/go-gitee/gitee"
 	"github.com/sirupsen/logrus"
@@ -44,14 +43,14 @@ func (bot *robot) getConfig(cfg config.Config) (*configuration, error) {
 	return c, nil
 }
 
-func (bot *robot) RegisterEventHandler(p framework.HandlerRegitster) {
-	p.RegisterPullRequestHandler(bot.handlePREvent)
-	p.RegisterNoteEventHandler(bot.handleNoteEvent)
-	p.RegisterIssueHandler(bot.handleIssueEvent)
+func (bot *robot) RegisterEventHandler(f framework.HandlerRegitster) {
+	f.RegisterPullRequestHandler(bot.handlePREvent)
+	f.RegisterNoteEventHandler(bot.handleNoteEvent)
+	f.RegisterIssueHandler(bot.handleIssueEvent)
 }
 
 func (bot *robot) handlePREvent(e *sdk.PullRequestEvent, pc config.Config, log *logrus.Entry) error {
-	if e.GetAction() != giteeclient.PRActionOpened {
+	if sdk.GetPullRequestAction(e) != sdk.PRActionOpened {
 		return nil
 	}
 

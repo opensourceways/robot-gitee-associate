@@ -9,18 +9,17 @@ import (
 )
 
 const (
-	milestoneHasSetMessage = "Milestones have been set when the issue (%s)was created"
-	unsetMilestoneLabel    = "needs-milestone"
-	unsetMilestoneComment  = "@%s You have not selected a milestone,please select a milestone." +
-		"After setting the milestone, " +
-		"you can use the **/check-milestone** command to remove the **needs-milestone** label."
+	unsetMilestoneLabel = "needs-milestone"
+
+	unsetMilestoneComment = `
+@%s , Please select a milestone for the issue. Then, you can use the **/check-milestone** command to remove the **needs-milestone** label.
+`
 )
 
 var checkMilestoneRe = regexp.MustCompile(`(?mi)^/check-milestone\s*$`)
 
 func (bot *robot) handleIssueCreate(e *sdk.IssueEvent, log *logrus.Entry) error {
-	if e.GetIssue().GetMilestone().GetID() != 0 {
-		log.Debug(fmt.Sprintf(milestoneHasSetMessage, e.GetIssue().GetNumber()))
+	if hasMilestoneOnIssue(e.GetIssue()) {
 		return nil
 	}
 
@@ -36,10 +35,10 @@ func (bot *robot) handleIssueComment(e *sdk.NoteEvent) error {
 
 	org, repo := e.GetOrgRepo()
 	number := e.GetIssueNumber()
-	hasMilestone := e.GetIssue().GetMilestone().GetID() != 0
+	hasMilestone := hasMilestoneOnIssue(e.GetIssue())
 	hasLabel := e.GetIssueLabelSet().Has(unsetMilestoneLabel)
 
-	if hasLabel && hasMilestone {
+	if hasMilestone && hasLabel {
 		return bot.cli.RemoveIssueLabel(org, repo, number, unsetMilestoneLabel)
 	}
 
@@ -57,4 +56,8 @@ func (bot *robot) handleAddIssueLabelAndComment(owner, repo, number, author stri
 	}
 
 	return bot.cli.CreateIssueComment(owner, repo, number, fmt.Sprintf(unsetMilestoneComment, author))
+}
+
+func hasMilestoneOnIssue(issue *sdk.IssueHook) bool {
+	return issue.GetMilestone().GetID() != 0
 }
