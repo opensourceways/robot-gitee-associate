@@ -11,10 +11,12 @@ import (
 )
 
 const (
-	missIssueComment = "@%s PullRequest must be associated with an issue, please associate at least one issue. " +
-		"Then, you can use the **/check-issue** command to remove the **needs-issue** label."
-
 	missIssueLabel = "needs-issue"
+
+	missIssueComment = `
+@%s , PullRequest must be associated with at least one issue.
+You can use the **/check-issue** command to remove the **needs-issue** label when you set an issue.
+`
 )
 
 var (

@@ -96,7 +96,7 @@ func (bot *robot) handleNoteEvent(e *sdk.NoteEvent, pc config.Config, log *logru
 }
 
 func (bot *robot) handleIssueEvent(e *sdk.IssueEvent, pc config.Config, log *logrus.Entry) error {
-	if e.GetAction() != "open" {
+	if e.GetAction() != sdk.ActionOpen {
 		return nil
 	}
 
