@@ -1,10 +1,6 @@
 package main
 
-import (
-	"fmt"
-
-	libconfig "github.com/opensourceways/community-robot-lib/config"
-)
+import "github.com/opensourceways/community-robot-lib/config"
 
 type configuration struct {
 	ConfigItems []botConfig `json:"config_items,omitempty"`
@@ -16,13 +12,12 @@ func (c *configuration) configFor(org, repo string) *botConfig {
 	}
 
 	items := c.ConfigItems
-	v := make([]libconfig.IPluginForRepo, len(items))
-
+	v := make([]config.IRepoFilter, len(items))
 	for i := range items {
 		v[i] = &items[i]
 	}
 
-	if i := libconfig.FindConfig(org, repo, v); i >= 0 {
+	if i := config.Find(org, repo, v); i >= 0 {
 		return &items[i]
 	}
 
@@ -56,21 +51,12 @@ func (c *configuration) SetDefault() {
 }
 
 type botConfig struct {
-	libconfig.PluginForRepo
-	SwitchOfMilestone string `json:"switch_of_milestone" required:"true"`
+	config.RepoFilter
 }
 
 func (c *botConfig) setDefault() {
 }
 
 func (c *botConfig) validate() error {
-	if err := c.PluginForRepo.Validate(); err != nil {
-		return err
-	}
-
-	if c.SwitchOfMilestone == "" {
-		return fmt.Errorf("missing SwitchOfMilestone")
-	}
-
-	return nil
+	return c.RepoFilter.Validate()
 }

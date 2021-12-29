@@ -4,15 +4,19 @@ import (
 	"fmt"
 	"regexp"
 
-	sdk "gitee.com/openeuler/go-gitee/gitee"
 	"github.com/opensourceways/community-robot-lib/giteeclient"
+	sdk "github.com/opensourceways/go-gitee/gitee"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 const (
-	missIssueComment = "@%s PullRequest must be associated with an issue, please associate at least one issue. " +
-		"after associating an issue, you can use the **/check-issue** command to remove the **needs-issue** label."
 	missIssueLabel = "needs-issue"
+
+	missIssueComment = `
+@%s , PullRequest must be associated with at least one issue.
+You can use the **/check-issue** command to remove the **needs-issue** label when you set an issue.
+`
 )
 
 var (
@@ -21,38 +25,18 @@ var (
 )
 
 func (bot *robot) handlePRCreate(e *sdk.PullRequestEvent, log *logrus.Entry) error {
-	prInfo := giteeclient.GetPRInfoByPREvent(e)
-
-	issues, err := bot.cli.ListPrIssues(prInfo.Org, prInfo.Repo, prInfo.Number)
-	if err != nil {
-		log.Errorf("get issues of pr failed: %v", err)
-
-		return err
-	}
-
-	hasLabel := prInfo.HasLabel(missIssueLabel)
-
-	if len(issues) == 0 && !hasLabel {
-		err = bot.cli.AddPRLabel(prInfo.Org, prInfo.Repo, prInfo.Number, missIssueLabel)
-		if err != nil {
-			return err
-		}
-
-		return bot.cli.CreatePRComment(prInfo.Org, prInfo.Repo, prInfo.Number,
-			fmt.Sprintf(missIssueComment, prInfo.Author))
-	}
-
-	return nil
+	org, repo := e.GetOrgRepo()
+	return bot.handlePRIssue(org, repo, e.GetPRAuthor(), e.GetPRNumber(), e.GetPRLabelSet())
 }
 
 func (bot *robot) handlePRComment(e *sdk.NoteEvent) error {
-	ne := giteeclient.NewPRNoteEvent(e)
+	c := e.GetComment().GetBody()
 
-	if checkIssueRe.MatchString(ne.GetComment()) {
+	if checkIssueRe.MatchString(c) {
 		return bot.handleCheckIssue(e)
 	}
 
-	if removeMissIssue.MatchString(ne.GetComment()) {
+	if removeMissIssue.MatchString(c) {
 		return bot.handleRemoveMissLabel(e)
 	}
 
@@ -60,46 +44,56 @@ func (bot *robot) handlePRComment(e *sdk.NoteEvent) error {
 }
 
 func (bot *robot) handleCheckIssue(e *sdk.NoteEvent) error {
-	ne := giteeclient.NewPRNoteEvent(e)
-	pr := ne.GetPRInfo()
+	org, repo := e.GetOrgRepo()
+	return bot.handlePRIssue(org, repo, e.GetPRAuthor(), e.GetPRNumber(), e.GetPRLabelSet())
+}
 
-	issues, err := bot.cli.ListPrIssues(pr.Org, pr.Repo, pr.Number)
+func (bot *robot) handlePRIssue(org, repo, prAuthor string, number int32, labels sets.String) error {
+	issues, err := bot.cli.ListPrIssues(org, repo, number)
 	if err != nil {
 		return err
 	}
 
-	hasLabel := pr.HasLabel(missIssueLabel)
+	hasIssue := len(issues) > 0
+	hasLabel := labels.Has(missIssueLabel)
 
-	if len(issues) == 0 && !hasLabel {
-		if err := bot.cli.AddPRLabel(pr.Org, pr.Repo, pr.Number, missIssueLabel); err != nil {
+	if !hasIssue && !hasLabel {
+		if err := bot.cli.AddPRLabel(org, repo, number, missIssueLabel); err != nil {
 			return err
 		}
 
-		return bot.cli.CreatePRComment(pr.Org, pr.Repo, pr.Number, fmt.Sprintf(missIssueComment, pr.Author))
+		return bot.cli.CreatePRComment(org, repo, number, fmt.Sprintf(missIssueComment, prAuthor))
 	}
 
-	if len(issues) > 0 && hasLabel {
-		return bot.cli.RemovePRLabel(pr.Org, pr.Repo, pr.Number, missIssueLabel)
+	if hasIssue && hasLabel {
+		return bot.cli.RemovePRLabel(org, repo, number, missIssueLabel)
 	}
 
 	return nil
 }
 
 func (bot *robot) handleRemoveMissLabel(e *sdk.NoteEvent) error {
-	ne := giteeclient.NewPRNoteEvent(e)
-	pr := ne.GetPRInfo()
+	if !e.GetPRLabelSet().Has(missIssueLabel) {
+		return nil
+	}
 
-	isCo, err := bot.cli.IsCollaborator(pr.Org, pr.Repo, ne.GetCommenter())
+	org, repo := e.GetOrgRepo()
+
+	b, err := bot.cli.IsCollaborator(org, repo, e.GetCommenter())
 	if err != nil {
 		return err
 	}
 
-	if !isCo {
-		comment := fmt.Sprintf("@%s Members of the repository can delete the 'needs-issue' label. "+
-			"Please contact the Members.", ne.GetCommenter())
+	number := e.GetPRNumber()
 
-		return bot.cli.CreatePRComment(pr.Org, pr.Repo, pr.Number, comment)
+	if !b {
+		msg := "Only members of the repository can delete the 'needs-issue' label. Please contact them to do it."
+
+		return bot.cli.CreatePRComment(
+			org, repo, number,
+			giteeclient.GenResponseWithReference(e, msg),
+		)
 	}
 
-	return bot.cli.RemovePRLabel(pr.Org, pr.Repo, pr.Number, missIssueLabel)
+	return bot.cli.RemovePRLabel(org, repo, number, missIssueLabel)
 }
