@@ -24,9 +24,9 @@ var (
 	removeMissIssue = regexp.MustCompile(`(?mi)^/remove-needs-issue\s*$`)
 )
 
-func (bot *robot) handlePRCreate(e *sdk.PullRequestEvent, log *logrus.Entry) error {
+func (bot *robot) handlePRIssue(e *sdk.PullRequestEvent, log *logrus.Entry) error {
 	org, repo := e.GetOrgRepo()
-	return bot.handlePRIssue(org, repo, e.GetPRAuthor(), e.GetPRNumber(), e.GetPRLabelSet())
+	return bot.checkPRAssociateIssue(org, repo, e.GetPRAuthor(), e.GetPRNumber(), e.GetPRLabelSet())
 }
 
 func (bot *robot) handlePRComment(e *sdk.NoteEvent) error {
@@ -45,10 +45,10 @@ func (bot *robot) handlePRComment(e *sdk.NoteEvent) error {
 
 func (bot *robot) handleCheckIssue(e *sdk.NoteEvent) error {
 	org, repo := e.GetOrgRepo()
-	return bot.handlePRIssue(org, repo, e.GetPRAuthor(), e.GetPRNumber(), e.GetPRLabelSet())
+	return bot.checkPRAssociateIssue(org, repo, e.GetPRAuthor(), e.GetPRNumber(), e.GetPRLabelSet())
 }
 
-func (bot *robot) handlePRIssue(org, repo, prAuthor string, number int32, labels sets.String) error {
+func (bot *robot) checkPRAssociateIssue(org, repo, prAuthor string, number int32, labels sets.String) error {
 	issues, err := bot.cli.ListPrIssues(org, repo, number)
 	if err != nil {
 		return err
