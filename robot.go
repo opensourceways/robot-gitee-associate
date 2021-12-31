@@ -66,7 +66,7 @@ func (bot *robot) handlePREvent(e *sdk.PullRequestEvent, pc config.Config, log *
 		return nil
 	}
 
-	return bot.handlePRIssue(e, log)
+	return bot.handlePRIssue(org, repo, e.GetPullRequest())
 }
 
 func (bot *robot) handleNoteEvent(e *sdk.NoteEvent, pc config.Config, log *logrus.Entry) error {
