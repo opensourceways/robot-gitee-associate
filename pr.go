@@ -6,17 +6,12 @@ import (
 
 	"github.com/opensourceways/community-robot-lib/giteeclient"
 	sdk "github.com/opensourceways/go-gitee/gitee"
-	"github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 const (
 	missIssueLabel = "needs-issue"
 
-	missIssueComment = `
-@%s , PullRequest must be associated with at least one issue.
-You can use the **/check-issue** command to remove the **needs-issue** label when you set an issue.
-`
+	missIssueComment = "@%s , PullRequest must be associated with at least one issue."
 )
 
 var (
@@ -24,16 +19,13 @@ var (
 	removeMissIssue = regexp.MustCompile(`(?mi)^/remove-needs-issue\s*$`)
 )
 
-func (bot *robot) handlePRCreate(e *sdk.PullRequestEvent, log *logrus.Entry) error {
-	org, repo := e.GetOrgRepo()
-	return bot.handlePRIssue(org, repo, e.GetPRAuthor(), e.GetPRNumber(), e.GetPRLabelSet())
-}
-
 func (bot *robot) handlePRComment(e *sdk.NoteEvent) error {
 	c := e.GetComment().GetBody()
 
 	if checkIssueRe.MatchString(c) {
-		return bot.handleCheckIssue(e)
+		org, repo := e.GetOrgRepo()
+
+		return bot.handlePRIssue(org, repo, e.GetPullRequest())
 	}
 
 	if removeMissIssue.MatchString(c) {
@@ -43,16 +35,11 @@ func (bot *robot) handlePRComment(e *sdk.NoteEvent) error {
 	return nil
 }
 
-func (bot *robot) handleCheckIssue(e *sdk.NoteEvent) error {
-	org, repo := e.GetOrgRepo()
-	return bot.handlePRIssue(org, repo, e.GetPRAuthor(), e.GetPRNumber(), e.GetPRLabelSet())
-}
-
-func (bot *robot) handlePRIssue(org, repo, prAuthor string, number int32, labels sets.String) error {
-	issues, err := bot.cli.ListPrIssues(org, repo, number)
-	if err != nil {
-		return err
-	}
+func (bot *robot) handlePRIssue(org, repo string, pr *sdk.PullRequestHook) error {
+	number := pr.GetNumber()
+	labels := pr.LabelsToSet()
+	prAuthor := pr.GetUser().GetLogin()
+	issues := pr.GetIssues()
 
 	hasIssue := len(issues) > 0
 	hasLabel := labels.Has(missIssueLabel)

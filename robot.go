@@ -50,7 +50,8 @@ func (bot *robot) RegisterEventHandler(f framework.HandlerRegitster) {
 }
 
 func (bot *robot) handlePREvent(e *sdk.PullRequestEvent, pc config.Config, log *logrus.Entry) error {
-	if sdk.GetPullRequestAction(e) != sdk.PRActionOpened {
+	action := sdk.GetPullRequestAction(e)
+	if action != sdk.PRActionOpened && action != sdk.PRActionLinkIssue {
 		return nil
 	}
 
@@ -65,7 +66,7 @@ func (bot *robot) handlePREvent(e *sdk.PullRequestEvent, pc config.Config, log *
 		return nil
 	}
 
-	return bot.handlePRCreate(e, log)
+	return bot.handlePRIssue(org, repo, e.GetPullRequest())
 }
 
 func (bot *robot) handleNoteEvent(e *sdk.NoteEvent, pc config.Config, log *logrus.Entry) error {
