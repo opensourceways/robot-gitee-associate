@@ -19,10 +19,10 @@ var (
 	removeMissIssue = regexp.MustCompile(`(?mi)^/remove-needs-issue\s*$`)
 )
 
-func (bot *robot) handlePRComment(e *sdk.NoteEvent) error {
+func (bot *robot) handlePRComment(e *sdk.NoteEvent, cfg *botConfig) error {
 	c := e.GetComment().GetBody()
 
-	if checkIssueRe.MatchString(c) {
+	if checkIssueRe.MatchString(c) && *cfg.EnableCheckAssociateIssue {
 		org, repo := e.GetOrgRepo()
 
 		return bot.handlePRIssue(org, repo, e.GetPullRequest())

@@ -52,9 +52,24 @@ func (c *configuration) SetDefault() {
 
 type botConfig struct {
 	config.RepoFilter
+
+	// EnableCheckAssociateIssue Controls whether to check PR related issues, default true.
+	EnableCheckAssociateIssue *bool `json:"enable_check_associate_issue,omitempty"`
+
+	// EnableCheckAssociateMilestone Controls whether to check issue-related milestones, default true
+	EnableCheckAssociateMilestone *bool `json:"enable_check_associate_milestone"`
 }
 
 func (c *botConfig) setDefault() {
+	enableDefault := true
+
+	if c.EnableCheckAssociateIssue == nil {
+		c.EnableCheckAssociateIssue = &enableDefault
+	}
+
+	if c.EnableCheckAssociateMilestone == nil {
+		c.EnableCheckAssociateMilestone = &enableDefault
+	}
 }
 
 func (c *botConfig) validate() error {

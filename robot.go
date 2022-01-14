@@ -34,13 +34,17 @@ func (bot *robot) NewConfig() config.Config {
 	return &configuration{}
 }
 
-func (bot *robot) getConfig(cfg config.Config) (*configuration, error) {
+func (bot *robot) getConfig(cfg config.Config, org, repo string) (*botConfig, error) {
 	c, ok := cfg.(*configuration)
 	if !ok {
 		return nil, fmt.Errorf("can't convert to configuration")
 	}
 
-	return c, nil
+	if bc := c.configFor(org, repo); bc != nil {
+		return bc, nil
+	}
+
+	return nil, fmt.Errorf("no config for this repo:%s/%s", org, repo)
 }
 
 func (bot *robot) RegisterEventHandler(f framework.HandlerRegitster) {
@@ -57,12 +61,12 @@ func (bot *robot) handlePREvent(e *sdk.PullRequestEvent, pc config.Config, log *
 
 	org, repo := e.GetOrgRepo()
 
-	cfg, err := bot.getConfig(pc)
+	cfg, err := bot.getConfig(pc, org, repo)
 	if err != nil {
 		return err
 	}
 
-	if cfg.configFor(org, repo) == nil {
+	if !*cfg.EnableCheckAssociateIssue {
 		return nil
 	}
 
@@ -74,23 +78,19 @@ func (bot *robot) handleNoteEvent(e *sdk.NoteEvent, pc config.Config, log *logru
 		return nil
 	}
 
-	cfg, err := bot.getConfig(pc)
+	org, repo := e.GetOrgRepo()
+
+	cfg, err := bot.getConfig(pc, org, repo)
 	if err != nil {
 		return err
 	}
 
-	org, repo := e.GetOrgRepo()
-
-	if cfg.configFor(org, repo) == nil {
-		return nil
-	}
-
 	if e.IsPullRequest() {
-		return bot.handlePRComment(e)
+		return bot.handlePRComment(e, cfg)
 	}
 
 	if e.IsIssue() {
-		return bot.handleIssueComment(e)
+		return bot.handleIssueComment(e, cfg)
 	}
 
 	return nil
@@ -101,14 +101,14 @@ func (bot *robot) handleIssueEvent(e *sdk.IssueEvent, pc config.Config, log *log
 		return nil
 	}
 
-	cfg, err := bot.getConfig(pc)
+	org, repo := e.GetOrgRepo()
+
+	cfg, err := bot.getConfig(pc, org, repo)
 	if err != nil {
 		return err
 	}
 
-	org, repo := e.GetOrgRepo()
-
-	if cfg.configFor(org, repo) == nil {
+	if !*cfg.EnableCheckAssociateMilestone {
 		return nil
 	}
 
