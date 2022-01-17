@@ -20,9 +20,13 @@ var (
 )
 
 func (bot *robot) handlePRComment(e *sdk.NoteEvent, cfg *botConfig) error {
+	if !cfg.enableCheckingIssue() {
+		return nil
+	}
+
 	c := e.GetComment().GetBody()
 
-	if checkIssueRe.MatchString(c) && *cfg.EnableCheckAssociateIssue {
+	if checkIssueRe.MatchString(c) {
 		org, repo := e.GetOrgRepo()
 
 		return bot.handlePRIssue(org, repo, e.GetPullRequest())

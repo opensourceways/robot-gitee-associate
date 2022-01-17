@@ -66,7 +66,7 @@ func (bot *robot) handlePREvent(e *sdk.PullRequestEvent, pc config.Config, log *
 		return err
 	}
 
-	if !*cfg.EnableCheckAssociateIssue {
+	if !cfg.enableCheckingIssue() {
 		return nil
 	}
 
@@ -108,7 +108,7 @@ func (bot *robot) handleIssueEvent(e *sdk.IssueEvent, pc config.Config, log *log
 		return err
 	}
 
-	if !*cfg.EnableCheckAssociateMilestone {
+	if !cfg.enableCheckingMilestone() {
 		return nil
 	}
 

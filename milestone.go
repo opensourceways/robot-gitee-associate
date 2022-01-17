@@ -29,7 +29,7 @@ func (bot *robot) handleIssueCreate(e *sdk.IssueEvent, log *logrus.Entry) error 
 }
 
 func (bot *robot) handleIssueComment(e *sdk.NoteEvent, cfg *botConfig) error {
-	if !checkMilestoneRe.MatchString(e.GetComment().GetBody()) || !*cfg.EnableCheckAssociateMilestone {
+	if !cfg.enableCheckingMilestone() || !checkMilestoneRe.MatchString(e.GetComment().GetBody()) {
 		return nil
 	}
 
